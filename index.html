@@ -86,8 +86,44 @@
             background: #e74c3c;
         }
 
-        .btn.tracking:hover {
-            background: #c0392b;
+        .btn.keyboard-active {
+            background: #9b59b6;
+            animation: pulse 2s infinite;
+        }
+
+        .btn.keyboard-active:hover {
+            background: #8e44ad;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .keyboard-hint {
+            position: absolute;
+            top: 140px;
+            right: 10px;
+            background: rgba(155, 89, 182, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .keyboard-hint.active {
+            display: block;
         }
 
         .status {
@@ -116,8 +152,13 @@
 
         <div class="controls">
             <button id="start-tracking" class="btn">Start Exploring</button>
+            <button id="keyboard-mode" class="btn">🎮 Keyboard Mode</button>
             <button id="center-map" class="btn">Center Map</button>
             <button id="clear-routes" class="btn">Clear Routes</button>
+        </div>
+
+        <div class="keyboard-hint" id="keyboard-hint">
+            Use WASD or Arrow Keys to move around!
         </div>
 
         <div class="status" id="status">
