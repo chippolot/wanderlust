@@ -28,8 +28,8 @@ class WanderlustApp {
         this.setupEventListeners();
         this.loadStoredRoutes();
         this.updateXPDisplay();
-        // Don't auto-request location - wait for user interaction
-        this.updateStatus('Click "Start Exploring" to grant location access and begin!');
+        // Try to get initial location and center map
+        await this.getInitialLocation();
     }
 
     initMap() {
@@ -60,19 +60,21 @@ class WanderlustApp {
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
     }
 
-    async requestLocationPermission() {
+    async getInitialLocation() {
         if (!navigator.geolocation) {
-            this.updateStatus('Geolocation not supported by this browser.');
+            this.updateStatus('Geolocation not supported. Using default location (San Francisco).');
             return;
         }
 
         try {
+            this.updateStatus('Getting your location...');
             const position = await this.getCurrentPosition();
             this.handleLocationUpdate(position);
-            this.updateStatus('Location found! Ready to start exploring.');
+            this.updateStatus('Location found! Click "Start Exploring" to begin tracking your route.');
         } catch (error) {
-            this.updateStatus('Please enable location access to start exploring.');
-            console.error('Location error:', error);
+            console.log('Location permission denied or failed, using default location');
+            this.updateStatus('Click "Start Exploring" to grant location access and begin!');
+            // Don't show error to user since this is automatic - they can manually grant later
         }
     }
 
@@ -118,7 +120,7 @@ class WanderlustApp {
                 })
             }).addTo(this.map);
 
-            // Center map on first location
+            // Center map on first location (always center when we get a location)
             this.map.setView(newPos, 16);
         }
 
@@ -217,8 +219,7 @@ class WanderlustApp {
         console.log(`🗺️ Processing location: ${lat}, ${lng}`);
 
         try {
-            // Get nearby streets (with caching)
-            this.updateStatus('🔄 Finding nearby streets...');
+            // Get nearby streets (with caching) - don't show "finding streets" message
             this.nearbyStreets = await this.streetService.getNearbyStreets(lat, lng);
 
             console.log(`📍 Found ${this.nearbyStreets.length} nearby streets`);
@@ -226,7 +227,7 @@ class WanderlustApp {
             if (this.nearbyStreets.length === 0) {
                 // No streets nearby, use raw GPS point
                 this.addPointToRoute([lat, lng]);
-                this.updateStatus('🚶‍♂️ Exploring... (No streets found nearby)');
+                this.updateStatus('🚶‍♂️ Exploring off-road');
                 return;
             }
 
@@ -248,12 +249,22 @@ class WanderlustApp {
                         // Draw the explored street segment
                         this.drawExploredSegment(closest.segment);
                         this.addXP(xpGained);
+                        // Show discovery notification temporarily
                         this.updateStatus(`🎉 New street discovered! +${xpGained} XP (${closest.street.name})`);
+
+                        // Return to normal status after 3 seconds
+                        setTimeout(() => {
+                            this.updateStatus(`🚶‍♂️ Walking on ${closest.street.name}`);
+                        }, 3000);
                     } else {
-                        this.updateStatus(`🚶‍♂️ Walking on ${closest.street.name} (already explored)`);
+                        // Just show current street name
+                        this.updateStatus(`🚶‍♂️ Walking on ${closest.street.name}`);
                     }
 
                     this.lastSegmentId = closest.segment.id;
+                } else {
+                    // Same segment, just show current street
+                    this.updateStatus(`🚶‍♂️ Walking on ${closest.street.name}`);
                 }
 
                 // Add SNAPPED point to route (this makes the line follow streets)
@@ -263,12 +274,12 @@ class WanderlustApp {
                 // Too far from any street, use GPS point
                 const distance = closest ? closest.distance.toFixed(1) : 'unknown';
                 this.addPointToRoute([lat, lng]);
-                this.updateStatus(`🚶‍♂️ Exploring... (${distance}m from nearest street)`);
+                this.updateStatus(`🚶‍♂️ Exploring off-road (${distance}m from nearest street)`);
             }
 
         } catch (error) {
             console.error('❌ Street processing error:', error);
-            this.updateStatus('⚠️ Street data error, using GPS point');
+            this.updateStatus('⚠️ Street data error');
             // Fallback to GPS point
             this.addPointToRoute([lat, lng]);
         }
