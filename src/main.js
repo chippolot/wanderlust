@@ -29,11 +29,17 @@ class WanderlustApp {
         this.locationManager.setPositionChangeCallback((position, isInitial) => {
             this.mapManager.updateUserMarker(position);
             if (isInitial) {
+                this.mapManager.centerOnUser();
                 this.mapManager.setAutoCenter(true);
             }
         });
 
-        await this.locationManager.getInitialLocation();
+        // Check location permission status
+        const permissionStatus = await this.locationManager.checkPermissionStatus();
+        if (permissionStatus === 'granted') {
+            await this.locationManager.getInitialLocation();
+            this.updateStatus('Click "Start Exploring" to begin your journey!');
+        }
     }
 
     setupEventListeners() {
@@ -86,12 +92,18 @@ class WanderlustApp {
                     this.mapManager.setAutoCenter(true);
                     this.updateStatus('Keyboard mode: Ready to explore from San Francisco!');
                 } else {
+                    const permissionStatus = await this.locationManager.checkPermissionStatus();
+                    if (permissionStatus === 'denied') {
+                        this.updateStatus('Please enable location access in your browser settings to start exploring.');
+                        return;
+                    }
+                    
                     try {
                         await this.locationManager.getCurrentPosition();
                         this.mapManager.setAutoCenter(true);
                         this.updateStatus('Location found! Starting to track your route...');
                     } catch (error) {
-                        this.updateStatus('Please enable location access to start exploring.');
+                        this.updateStatus('Unable to get your location. Please check your device settings.');
                         console.error('Location error:', error);
                         return;
                     }

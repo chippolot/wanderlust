@@ -3,6 +3,7 @@ export class LocationManager {
         this.currentPosition = null;
         this.watchId = null;
         this.onPositionChange = null;
+        this.permissionStatus = null;
     }
 
     setPositionChangeCallback(callback) {
@@ -88,6 +89,30 @@ export class LocationManager {
         this.currentPosition = [37.7749, -122.4194]; // San Francisco default
         if (this.onPositionChange) {
             this.onPositionChange(this.currentPosition, true);
+        }
+    }
+
+    async checkPermissionStatus() {
+        if (!navigator.permissions || !navigator.permissions.query) {
+            // If permissions API is not available, try to get position
+            try {
+                await this.getCurrentPosition();
+                return 'granted';
+            } catch (error) {
+                return 'denied';
+            }
+        }
+
+        try {
+            const result = await navigator.permissions.query({ name: 'geolocation' });
+            this.permissionStatus = result.state;
+            result.addEventListener('change', () => {
+                this.permissionStatus = result.state;
+            });
+            return result.state;
+        } catch (error) {
+            console.error('Error checking permission status:', error);
+            return 'denied';
         }
     }
 } 
