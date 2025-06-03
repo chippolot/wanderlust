@@ -140,7 +140,7 @@ export class StreetService {
     findClosestSegment(lat, lng, streets, currentSegmentId = null) {
         let closest = null;
         let minDistance = Infinity;
-        const CURRENT_SEGMENT_BIAS = 5; // 5 meter bias for current segment
+        const CURRENT_SEGMENT_BIAS = 10; // 10 meter bias for current segment
 
         for (const street of streets) {
             for (const segment of street.segments) {
@@ -254,13 +254,15 @@ export class StreetService {
     clearExploredSegments() {
         this.exploredSegments.clear();
         localStorage.removeItem('wanderlust_explored_segments');
+        // Clear the street cache to force a refresh
+        this.cachedStreets = null;
+        this.currentBBox = null;
     }
 
     // Get exploration statistics
     getExplorationStats() {
         return {
-            segmentsExplored: this.exploredSegments.size,
-            estimatedDistance: this.exploredSegments.size * 50 // Estimate 50m per segment
+            segmentsExplored: this.exploredSegments.size
         };
     }
 }
