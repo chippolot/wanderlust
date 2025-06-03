@@ -15,6 +15,8 @@ class WanderlustApp {
         this.nearbyStreets = [];
         this.lastSegmentId = null;
         this.currentStreetName = null;
+        this.lastUpdateTimestamp = 0;
+        this.pendingStreetUpdate = null;
 
         this.init();
     }
@@ -164,10 +166,27 @@ class WanderlustApp {
     }
 
     async processLocationForStreets(lat, lng) {
+        const currentTimestamp = Date.now();
+        this.lastUpdateTimestamp = currentTimestamp;
         console.log(`🗺️ Processing location: ${lat}, ${lng}`);
 
         try {
+            // Cancel any pending street update
+            if (this.pendingStreetUpdate) {
+                this.pendingStreetUpdate = null;
+            }
+
+            // Create a new pending update
+            this.pendingStreetUpdate = currentTimestamp;
+
             this.nearbyStreets = await this.streetService.getNearbyStreets(lat, lng);
+            
+            // Check if this update is still relevant
+            if (this.pendingStreetUpdate !== currentTimestamp) {
+                console.log('Skipping outdated street update');
+                return;
+            }
+
             console.log(`📍 Found ${this.nearbyStreets.length} nearby streets`);
 
             if (this.nearbyStreets.length === 0) {
@@ -210,6 +229,11 @@ class WanderlustApp {
             this.routeManager.addPointToRoute([lat, lng]);
             this.currentStreetName = null;
             this.updateStatus('⚠️ Street data error');
+        } finally {
+            // Clear the pending update if it's still the current one
+            if (this.pendingStreetUpdate === currentTimestamp) {
+                this.pendingStreetUpdate = null;
+            }
         }
     }
 
@@ -220,10 +244,12 @@ class WanderlustApp {
         if (this.keyboardMode) {
             btn.textContent = 'Exit Keyboard Mode';
             btn.classList.add('active');
+            this.mapManager.setKeyboardMode(true);
             this.updateStatus('Keyboard mode enabled! Use arrow keys or WASD to move.');
         } else {
             btn.textContent = 'Keyboard Mode';
             btn.classList.remove('active');
+            this.mapManager.setKeyboardMode(false);
             this.updateStatus('Keyboard mode disabled.');
         }
     }
@@ -256,7 +282,12 @@ class WanderlustApp {
                 return;
         }
 
-        this.handleLocationUpdate([newLat, newLng]);
+        // Update position immediately for smooth movement
+        this.locationManager.currentPosition = [newLat, newLng];
+        this.mapManager.updateUserMarker([newLat, newLng]);
+        
+        // Process street data asynchronously
+        this.processLocationForStreets(newLat, newLng);
     }
 
     addXP(amount) {

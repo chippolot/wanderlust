@@ -1,0 +1,19 @@
+.map-style-control {
+    background: white;
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+.map-style-control select {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+}
+
+.map-style-control select:hover {
+    border-color: #999;
+} 
