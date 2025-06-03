@@ -84,11 +84,6 @@ export class RouteManager {
         return R * c;
     }
 
-    calculateXP() {
-        // XP is now calculated by discovered segments, not distance
-        return this.discoveredSegments.size * 10; // 10 XP per segment
-    }
-
     clearAllRoutes() {
         // Clear current route
         this.currentRoute = [];

@@ -1,4 +1,5 @@
 import { StreetService } from './services/streetService.js';
+import { AchievementService } from './services/achievementService.js';
 import { MapManager } from './managers/MapManager.js';
 import { RouteManager } from './managers/RouteManager.js';
 import { LocationManager } from './managers/LocationManager.js';
@@ -9,6 +10,7 @@ class WanderlustApp {
         this.routeManager = new RouteManager(this.mapManager);
         this.locationManager = new LocationManager();
         this.streetService = new StreetService();
+        this.achievementService = new AchievementService();
         this.isTracking = false;
         this.keyboardMode = false;
         this.moveSpeed = 0.0002; // ~22 meters per keypress
@@ -18,6 +20,7 @@ class WanderlustApp {
         this.lastUpdateTimestamp = 0;
         this.pendingStreetUpdate = null;
         this.sessionXP = 0; // Track XP gained in current session
+        this.explorationDays = this.getExplorationDays(); // Track exploration days
 
         this.init();
     }
@@ -55,6 +58,9 @@ class WanderlustApp {
         const keyboardBtn = document.getElementById('keyboard-mode');
         const centerBtn = document.getElementById('center-map');
         const clearBtn = document.getElementById('clear-routes');
+        const achievementsBtn = document.getElementById('achievements-btn');
+        const closeAchievements = document.getElementById('close-achievements');
+        const achievementsModal = document.getElementById('achievements-modal');
 
         startBtn.addEventListener('click', () => this.toggleTracking());
         keyboardBtn.addEventListener('click', () => this.toggleKeyboardMode());
@@ -63,12 +69,21 @@ class WanderlustApp {
             this.mapManager.centerOnUser();
         });
         clearBtn.addEventListener('click', () => this.clearAllRoutes());
+        achievementsBtn.addEventListener('click', () => this.showAchievements());
+        closeAchievements.addEventListener('click', () => this.hideAchievements());
+        
+        // Close modal when clicking outside
+        achievementsModal.addEventListener('click', (e) => {
+            if (e.target === achievementsModal) {
+                this.hideAchievements();
+            }
+        });
 
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
     }
 
     clearAllRoutes() {
-        if (confirm('Clear all explored routes? This will also reset your street exploration progress and cannot be undone.')) {
+        if (confirm('Clear all explored routes? This will also reset your street exploration progress, achievements, and cannot be undone.')) {
             // Clear routes and data
             this.routeManager.clearAllRoutes();
             
@@ -78,6 +93,13 @@ class WanderlustApp {
             // Clear street exploration data
             this.streetService.clearExploredSegments();
             
+            // Clear achievements
+            this.achievementService.clearAchievements();
+            
+            // Clear exploration days
+            localStorage.removeItem('wanderlust_exploration_days');
+            this.explorationDays = [];
+            
             // Reset XP display
             this.updateXPDisplay();
             
@@ -85,7 +107,7 @@ class WanderlustApp {
             this.lastSegmentId = null;
             this.currentStreetName = null;
             
-            this.updateStatus('All routes and street progress cleared. Start exploring again!');
+            this.updateStatus('All data cleared. Start exploring again!');
         }
     }
 
@@ -135,6 +157,7 @@ class WanderlustApp {
 
         this.isTracking = true;
         this.sessionXP = 0; // Reset session XP when starting
+        this.recordExplorationDay(); // Record today as an exploration day
         this.routeManager.startNewRoute();
 
         if (this.locationManager.currentPosition) {
@@ -232,7 +255,7 @@ class WanderlustApp {
                         this.addXP(xpGained);
                         this.sessionXP += xpGained; // Track session XP
                         this.routeManager.addDiscoveredSegment(closest.segment.id); // Track for route saving
-                        this.updateStatus(`New street discovered! +${xpGained} XP (${closest.street.name})`);
+                        this.updateStatus(`🎉 New street discovered! +${xpGained} XP (${closest.street.name})`);
                     }
                     this.lastSegmentId = closest.segment.id;
                     this.currentStreetName = closest.street.name;
@@ -319,19 +342,243 @@ class WanderlustApp {
 
     addXP(amount) {
         const currentXP = parseInt(localStorage.getItem('userXP') || '0');
-        localStorage.setItem('userXP', currentXP + amount);
+        const newXP = currentXP + amount;
+        const oldLevel = this.calculateLevel(currentXP);
+        const newLevel = this.calculateLevel(newXP);
+        
+        localStorage.setItem('userXP', newXP);
         this.updateXPDisplay();
+        
+        // Check for achievements after XP change
+        this.checkAchievements();
+        
+        // Check for level up
+        if (newLevel > oldLevel) {
+            this.updateStatus(`🎉 Level up! You are now level ${newLevel}! (+${amount} XP)`);
+        }
+    }
+
+    // Calculate level based on XP using a progressive system
+    // Level 1: 0-499 XP, Level 2: 500-1499 XP, Level 3: 1500-3499 XP, etc.
+    calculateLevel(xp) {
+        if (xp < 500) return 1;
+        
+        // Each level requires significantly more XP than the previous level
+        // Level 2: 500, Level 3: 1500, Level 4: 3500, Level 5: 6500, etc.
+        let level = 1;
+        let xpRequired = 0;
+        let increment = 500;
+        
+        while (xp >= xpRequired + increment) {
+            xpRequired += increment;
+            level++;
+            increment += 500; // Each level requires 500 more XP than the last increment
+        }
+        
+        return level;
+    }
+
+    // Calculate XP required for next level
+    calculateXPForNextLevel(currentXP) {
+        const currentLevel = this.calculateLevel(currentXP);
+        
+        // Calculate XP required for next level
+        let xpRequired = 0;
+        let increment = 500;
+        
+        for (let i = 1; i < currentLevel + 1; i++) {
+            if (i > 1) {
+                xpRequired += increment;
+                increment += 500;
+            }
+        }
+        
+        return xpRequired + increment;
     }
 
     updateXPDisplay() {
         const xpElement = document.getElementById('xp-display');
         const currentXP = parseInt(localStorage.getItem('userXP') || '0');
-        xpElement.textContent = `XP: ${currentXP}`;
+        const currentLevel = this.calculateLevel(currentXP);
+        const nextLevelXP = this.calculateXPForNextLevel(currentXP);
+        const xpNeeded = nextLevelXP - currentXP;
+        
+        xpElement.innerHTML = `
+            <div class="level-info">
+                <div class="level">Level ${currentLevel}</div>
+                <div class="xp-details">${currentXP} XP (${xpNeeded} to next level)</div>
+            </div>
+        `;
     }
 
     updateStatus(message) {
         const statusElement = document.getElementById('status');
         statusElement.textContent = message;
+    }
+
+    // Get exploration days for achievements
+    getExplorationDays() {
+        const stored = localStorage.getItem('wanderlust_exploration_days');
+        return stored ? JSON.parse(stored) : [];
+    }
+
+    // Record today as an exploration day
+    recordExplorationDay() {
+        const today = new Date().toDateString();
+        const days = this.getExplorationDays();
+        
+        if (!days.includes(today)) {
+            days.push(today);
+            localStorage.setItem('wanderlust_exploration_days', JSON.stringify(days));
+            this.explorationDays = days;
+        }
+    }
+
+    // Calculate consecutive exploration days
+    getConsecutiveDays() {
+        const days = this.explorationDays.map(day => new Date(day)).sort((a, b) => b - a);
+        if (days.length === 0) return 0;
+        
+        let consecutive = 1;
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        // Check if today or yesterday is in the list
+        const latestDay = days[0];
+        const isToday = latestDay.toDateString() === today.toDateString();
+        const isYesterday = latestDay.toDateString() === yesterday.toDateString();
+        
+        if (!isToday && !isYesterday) return 0;
+        
+        // Count consecutive days
+        for (let i = 1; i < days.length; i++) {
+            const diff = Math.abs(days[i - 1] - days[i]) / (1000 * 60 * 60 * 24);
+            if (diff <= 1) {
+                consecutive++;
+            } else {
+                break;
+            }
+        }
+        
+        return consecutive;
+    }
+
+    // Check achievements and show notifications for new unlocks
+    checkAchievements() {
+        const stats = {
+            segmentsExplored: this.streetService.exploredSegments.size,
+            totalXP: parseInt(localStorage.getItem('userXP') || '0'),
+            sessionXP: this.sessionXP,
+            currentLevel: this.calculateLevel(parseInt(localStorage.getItem('userXP') || '0')),
+            explorationDays: this.explorationDays.length,
+            consecutiveDays: this.getConsecutiveDays()
+        };
+
+        const newUnlocks = this.achievementService.checkAchievements(stats);
+        
+        // Show notifications for new achievements
+        newUnlocks.forEach((achievement, index) => {
+            setTimeout(() => {
+                this.showAchievementNotification(achievement);
+                // Award achievement XP
+                if (achievement.xpReward > 0) {
+                    const currentXP = parseInt(localStorage.getItem('userXP') || '0');
+                    localStorage.setItem('userXP', currentXP + achievement.xpReward);
+                    this.updateXPDisplay();
+                }
+            }, index * 2000); // Stagger notifications
+        });
+    }
+
+    // Show achievement notification
+    showAchievementNotification(achievement) {
+        const notification = document.createElement('div');
+        notification.className = 'achievement-notification';
+        notification.innerHTML = `
+            <h3>${achievement.icon} ${achievement.name}</h3>
+            <p>${achievement.description}</p>
+            <p>+${achievement.xpReward} XP Bonus!</p>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remove notification after 4 seconds
+        setTimeout(() => {
+            notification.remove();
+        }, 4000);
+    }
+
+    // Show achievements modal
+    showAchievements() {
+        const modal = document.getElementById('achievements-modal');
+        this.updateAchievementsModal();
+        modal.classList.add('show');
+    }
+
+    // Hide achievements modal
+    hideAchievements() {
+        const modal = document.getElementById('achievements-modal');
+        modal.classList.remove('show');
+    }
+
+    // Update achievements modal content
+    updateAchievementsModal() {
+        const stats = {
+            segmentsExplored: this.streetService.exploredSegments.size,
+            totalXP: parseInt(localStorage.getItem('userXP') || '0'),
+            sessionXP: this.sessionXP,
+            currentLevel: this.calculateLevel(parseInt(localStorage.getItem('userXP') || '0')),
+            explorationDays: this.explorationDays.length,
+            consecutiveDays: this.getConsecutiveDays()
+        };
+
+        // Update stats
+        const achievementStats = this.achievementService.getAchievementStats();
+        document.getElementById('achievements-unlocked').textContent = 
+            `${achievementStats.unlocked}/${achievementStats.total}`;
+        document.getElementById('achievements-percentage').textContent = 
+            `${achievementStats.percentage}%`;
+
+        // Update achievements grid
+        const grid = document.getElementById('achievements-grid');
+        grid.innerHTML = '';
+
+        const achievements = this.achievementService.getAllAchievements();
+        achievements.forEach(achievement => {
+            const progress = this.achievementService.getProgress(achievement.id, stats);
+            const isUnlocked = this.achievementService.unlockedAchievements.has(achievement.id);
+            
+            const card = document.createElement('div');
+            card.className = `achievement-card ${isUnlocked ? 'unlocked' : ''}`;
+            
+            const progressPercent = Math.round(progress.progress * 100);
+            const progressText = isUnlocked ? 
+                'Completed!' : 
+                `${progress.current}/${progress.target}`;
+            
+            card.innerHTML = `
+                <div class="achievement-header">
+                    <div class="achievement-icon">${achievement.icon}</div>
+                    <div class="achievement-info">
+                        <h3 class="achievement-name">${achievement.name}</h3>
+                        <p class="achievement-description">${achievement.description}</p>
+                    </div>
+                </div>
+                <div class="achievement-progress">
+                    <div class="achievement-progress-bar">
+                        <div class="achievement-progress-fill" style="width: ${progressPercent}%"></div>
+                    </div>
+                    <div class="achievement-progress-text">
+                        <span>${progressText}</span>
+                        <span>${progressPercent}%</span>
+                    </div>
+                </div>
+                <div class="achievement-reward">+${achievement.xpReward} XP</div>
+            `;
+            
+            grid.appendChild(card);
+        });
     }
 }
 

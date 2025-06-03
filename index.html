@@ -25,6 +25,7 @@
 
         <div class="controls">
             <button id="start-tracking" class="btn">Start Exploring</button>
+            <button id="achievements-btn" class="btn">🏆 Achievements</button>
             <button id="keyboard-mode" class="btn">Keyboard Mode</button>
             <button id="center-map" class="btn">Center Map</button>
             <button id="clear-routes" class="btn">Clear Routes</button>
@@ -36,6 +37,31 @@
 
         <div class="status" id="status">
             Initializing map...
+        </div>
+
+        <!-- Achievements Modal -->
+        <div id="achievements-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🏆 Achievements</h2>
+                    <button class="modal-close" id="close-achievements">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="achievement-stats" id="achievement-stats">
+                        <div class="stat">
+                            <span class="stat-label">Unlocked:</span>
+                            <span class="stat-value" id="achievements-unlocked">0/25</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Completion:</span>
+                            <span class="stat-value" id="achievements-percentage">0%</span>
+                        </div>
+                    </div>
+                    <div class="achievements-grid" id="achievements-grid">
+                        <!-- Achievements will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

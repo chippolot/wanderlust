@@ -269,8 +269,14 @@ export class StreetService {
         }
         this.saveExploredSegments();
 
-        // Award XP based on segment length (estimate ~50m average segment = 10 XP)
-        return 10;
+        // Award XP based on segment length - 0.2 XP per meter (was 1 XP per meter)
+        const segmentLength = segmentData ? this.calculateSegmentLength(segmentData) : 50; // Default 50m if no data
+        return Math.round(segmentLength * 0.2);
+    }
+
+    // Calculate the length of a segment in meters
+    calculateSegmentLength(segmentData) {
+        return this.haversineDistance(segmentData.start, segmentData.end);
     }
 
     // Check if a segment has been explored
