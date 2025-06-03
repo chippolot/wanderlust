@@ -25,6 +25,7 @@
 
         <div class="controls">
             <button id="start-tracking" class="btn">Start Exploring</button>
+            <button id="route-suggestion-btn" class="btn">🗺️ Suggest Route</button>
             <button id="achievements-btn" class="btn">🏆 Achievements</button>
             <button id="keyboard-mode" class="btn">Keyboard Mode</button>
             <button id="center-map" class="btn">Center Map</button>
@@ -59,6 +60,70 @@
                     </div>
                     <div class="achievements-grid" id="achievements-grid">
                         <!-- Achievements will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Suggestion Modal -->
+        <div id="route-suggestion-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🗺️ Route Suggestions</h2>
+                    <button class="modal-close" id="close-route-suggestion">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="route-settings">
+                        <div class="setting-group">
+                            <label for="target-distance">Target Route Distance:</label>
+                            <select id="target-distance">
+                                <option value="1">1 km (~12 min walk)</option>
+                                <option value="2" selected>2 km (~24 min walk)</option>
+                                <option value="3">3 km (~36 min walk)</option>
+                                <option value="5">5 km (~60 min walk)</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="search-radius">Search Radius:</label>
+                            <select id="search-radius">
+                                <option value="1">1 km from current location</option>
+                                <option value="2" selected>2 km from current location</option>
+                                <option value="3">3 km from current location</option>
+                                <option value="5">5 km from current location</option>
+                            </select>
+                        </div>
+                        <button id="generate-route" class="btn btn-primary">Generate Route Suggestion</button>
+                    </div>
+                    
+                    <div id="route-result" class="route-result" style="display: none;">
+                        <div class="route-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Distance:</span>
+                                <span class="stat-value" id="route-distance">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">New Segments:</span>
+                                <span class="stat-value" id="route-segments">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Estimated XP:</span>
+                                <span class="stat-value" id="route-xp">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Duration:</span>
+                                <span class="stat-value" id="route-duration">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="route-actions">
+                            <button id="show-route" class="btn btn-success">Show Route on Map</button>
+                            <button id="start-suggested-route" class="btn btn-primary">Start This Route</button>
+                        </div>
+                    </div>
+                    
+                    <div id="route-error" class="route-error" style="display: none;">
+                        <p id="route-error-message">No route could be generated</p>
+                        <p class="error-hint">Try adjusting the distance settings or exploring a different area first.</p>
                     </div>
                 </div>
             </div>

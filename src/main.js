@@ -1,5 +1,6 @@
 import { StreetService } from './services/streetService.js';
 import { AchievementService } from './services/achievementService.js';
+import { RouteSuggestionService } from './services/routeSuggestionService.js';
 import { MapManager } from './managers/MapManager.js';
 import { RouteManager } from './managers/RouteManager.js';
 import { LocationManager } from './managers/LocationManager.js';
@@ -11,6 +12,7 @@ class WanderlustApp {
         this.locationManager = new LocationManager();
         this.streetService = new StreetService();
         this.achievementService = new AchievementService();
+        this.routeSuggestionService = new RouteSuggestionService(this.streetService);
         this.isTracking = false;
         this.keyboardMode = false;
         this.moveSpeed = 0.0002; // ~22 meters per keypress
@@ -21,6 +23,7 @@ class WanderlustApp {
         this.pendingStreetUpdate = null;
         this.sessionXP = 0; // Track XP gained in current session
         this.explorationDays = this.getExplorationDays(); // Track exploration days
+        this.currentSuggestedRoute = null; // Store current route suggestion
 
         this.init();
     }
@@ -61,6 +64,14 @@ class WanderlustApp {
         const achievementsBtn = document.getElementById('achievements-btn');
         const closeAchievements = document.getElementById('close-achievements');
         const achievementsModal = document.getElementById('achievements-modal');
+        
+        // Route suggestion elements
+        const routeSuggestionBtn = document.getElementById('route-suggestion-btn');
+        const closeRouteSuggestion = document.getElementById('close-route-suggestion');
+        const routeSuggestionModal = document.getElementById('route-suggestion-modal');
+        const generateRouteBtn = document.getElementById('generate-route');
+        const showRouteBtn = document.getElementById('show-route');
+        const startSuggestedRouteBtn = document.getElementById('start-suggested-route');
 
         startBtn.addEventListener('click', () => this.toggleTracking());
         keyboardBtn.addEventListener('click', () => this.toggleKeyboardMode());
@@ -72,10 +83,23 @@ class WanderlustApp {
         achievementsBtn.addEventListener('click', () => this.showAchievements());
         closeAchievements.addEventListener('click', () => this.hideAchievements());
         
-        // Close modal when clicking outside
+        // Route suggestion listeners
+        routeSuggestionBtn.addEventListener('click', () => this.showRouteSuggestion());
+        closeRouteSuggestion.addEventListener('click', () => this.hideRouteSuggestion());
+        generateRouteBtn.addEventListener('click', () => this.generateRouteSuggestion());
+        showRouteBtn.addEventListener('click', () => this.showSuggestedRouteOnMap());
+        startSuggestedRouteBtn.addEventListener('click', () => this.startSuggestedRoute());
+        
+        // Close modals when clicking outside
         achievementsModal.addEventListener('click', (e) => {
             if (e.target === achievementsModal) {
                 this.hideAchievements();
+            }
+        });
+        
+        routeSuggestionModal.addEventListener('click', (e) => {
+            if (e.target === routeSuggestionModal) {
+                this.hideRouteSuggestion();
             }
         });
 
@@ -160,6 +184,9 @@ class WanderlustApp {
         this.recordExplorationDay(); // Record today as an exploration day
         this.routeManager.startNewRoute();
 
+        // Set suggested route to tracking mode if it exists
+        this.mapManager.setSuggestedRouteTrackingMode(true);
+
         if (this.locationManager.currentPosition) {
             this.routeManager.addPointToRoute(this.locationManager.currentPosition);
         }
@@ -185,6 +212,9 @@ class WanderlustApp {
         this.isTracking = false;
         this.locationManager.stopWatchingPosition();
         this.mapManager.setAutoCenter(false);
+        
+        // Restore suggested route visibility if it exists
+        this.mapManager.setSuggestedRouteTrackingMode(false);
         
         // Release wake lock when stopping
         await this.locationManager.releaseWakeLock();
@@ -579,6 +609,115 @@ class WanderlustApp {
             
             grid.appendChild(card);
         });
+    }
+
+    // Route suggestion methods
+    showRouteSuggestion() {
+        if (!this.locationManager.currentPosition) {
+            this.updateStatus('Need location access to suggest routes. Please start exploring first.');
+            return;
+        }
+        
+        const modal = document.getElementById('route-suggestion-modal');
+        // Reset modal state
+        document.getElementById('route-result').style.display = 'none';
+        document.getElementById('route-error').style.display = 'none';
+        modal.classList.add('show');
+    }
+
+    hideRouteSuggestion() {
+        const modal = document.getElementById('route-suggestion-modal');
+        modal.classList.remove('show');
+        // Clear any highlighted segments when closing
+        this.mapManager.clearUndiscoveredHighlights();
+    }
+
+    async generateRouteSuggestion() {
+        const generateBtn = document.getElementById('generate-route');
+        const resultDiv = document.getElementById('route-result');
+        const errorDiv = document.getElementById('route-error');
+        
+        // Hide previous results
+        resultDiv.style.display = 'none';
+        errorDiv.style.display = 'none';
+        
+        // Show loading state
+        generateBtn.textContent = 'Generating Route...';
+        generateBtn.disabled = true;
+        
+        try {
+            const targetDistance = parseFloat(document.getElementById('target-distance').value);
+            const searchRadius = parseFloat(document.getElementById('search-radius').value);
+            
+            console.log(`🎯 Generating route: ${targetDistance}km within ${searchRadius}km`);
+            
+            const result = await this.routeSuggestionService.suggestRoute(
+                this.locationManager.currentPosition,
+                searchRadius,
+                targetDistance
+            );
+            
+            if (result.success) {
+                this.currentSuggestedRoute = result;
+                this.displayRouteResult(result);
+                resultDiv.style.display = 'block';
+                
+                // Highlight the undiscovered segments
+                this.mapManager.highlightUndiscoveredSegments(result.route.segments);
+                
+                this.updateStatus(`🗺️ Route suggested: ${result.stats.undiscoveredSegments} new segments, ~${result.stats.estimatedXP} XP`);
+            } else {
+                this.displayRouteError(result.error);
+                errorDiv.style.display = 'block';
+            }
+            
+        } catch (error) {
+            console.error('Route generation error:', error);
+            this.displayRouteError('Failed to generate route suggestion');
+            errorDiv.style.display = 'block';
+        } finally {
+            generateBtn.textContent = 'Generate Route Suggestion';
+            generateBtn.disabled = false;
+        }
+    }
+
+    displayRouteResult(result) {
+        const { stats } = result;
+        
+        document.getElementById('route-distance').textContent = `${stats.totalDistance.toFixed(1)} km`;
+        document.getElementById('route-segments').textContent = stats.undiscoveredSegments;
+        document.getElementById('route-xp').textContent = `~${stats.estimatedXP} XP`;
+        document.getElementById('route-duration').textContent = `~${stats.estimatedDuration} min`;
+    }
+
+    displayRouteError(error) {
+        document.getElementById('route-error-message').textContent = error;
+    }
+
+    showSuggestedRouteOnMap() {
+        if (!this.currentSuggestedRoute) return;
+        
+        const route = this.currentSuggestedRoute.route;
+        this.mapManager.drawSuggestedRoute(route.points, route.waypoints);
+        this.hideRouteSuggestion();
+        this.updateStatus('🗺️ Suggested route displayed with numbered waypoints. Click waypoints for instructions!');
+    }
+
+    startSuggestedRoute() {
+        if (!this.currentSuggestedRoute) return;
+        
+        // Don't clear the suggested route - keep it visible with reduced opacity
+        
+        // Start tracking if not already
+        if (!this.isTracking) {
+            this.toggleTracking();
+        }
+        
+        // Set tracking mode to reduce opacity
+        this.mapManager.setSuggestedRouteTrackingMode(true);
+        
+        this.hideRouteSuggestion();
+        this.updateStatus(`🚀 Following suggested route! Follow the numbered waypoints to discover ${this.currentSuggestedRoute.stats.undiscoveredSegments} new segments.`);
     }
 }
 

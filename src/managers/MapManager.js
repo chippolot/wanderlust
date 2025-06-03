@@ -184,5 +184,157 @@ export class MapManager {
             this.map.removeLayer(this.exploredSegmentsLayer);
             this.exploredSegmentsLayer = null;
         }
+        
+        // Clear suggested route
+        this.clearSuggestedRoute();
+    }
+
+    // Methods for route suggestions
+    drawSuggestedRoute(routePoints, waypoints = null) {
+        if (!this.map || !routePoints || routePoints.length < 2) return;
+
+        // Clear any existing suggested route
+        this.clearSuggestedRoute();
+
+        const routeStyle = {
+            color: '#e74c3c',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '10, 5'
+        };
+
+        this.suggestedRouteLayer = L.polyline(routePoints, routeStyle).addTo(this.map);
+        
+        // Add numbered waypoints if provided
+        if (waypoints && waypoints.length > 0) {
+            this.drawWaypoints(waypoints);
+        }
+        
+        // Fit map to show the entire suggested route
+        this.map.fitBounds(this.suggestedRouteLayer.getBounds(), {
+            padding: [20, 20]
+        });
+    }
+
+    drawWaypoints(waypoints) {
+        if (!this.map || !waypoints) return;
+
+        // Clear existing waypoints
+        this.clearWaypoints();
+
+        this.waypointsLayer = L.layerGroup().addTo(this.map);
+
+        waypoints.forEach((waypoint, index) => {
+            const { position, instruction, type } = waypoint;
+            
+            // Different styling based on waypoint type
+            let iconHtml, className;
+            
+            switch (type) {
+                case 'start':
+                    iconHtml = '🏁';
+                    className = 'waypoint-start';
+                    break;
+                case 'return':
+                    iconHtml = '🏁';
+                    className = 'waypoint-end';
+                    break;
+                case 'turnaround':
+                    iconHtml = '↩️';
+                    className = 'waypoint-turnaround';
+                    break;
+                default:
+                    iconHtml = `${index + 1}`;
+                    className = 'waypoint-numbered';
+            }
+
+            const waypoint_marker = L.marker(position, {
+                icon: L.divIcon({
+                    className: `waypoint-marker ${className}`,
+                    html: `<div class="waypoint-icon">${iconHtml}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                })
+            });
+
+            // Add popup with instruction
+            waypoint_marker.bindPopup(`<strong>Step ${index + 1}:</strong><br>${instruction}`, {
+                offset: [0, -15]
+            });
+
+            waypoint_marker.addTo(this.waypointsLayer);
+        });
+    }
+
+    clearWaypoints() {
+        if (this.waypointsLayer) {
+            this.map.removeLayer(this.waypointsLayer);
+            this.waypointsLayer = null;
+        }
+    }
+
+    clearSuggestedRoute() {
+        if (this.suggestedRouteLayer) {
+            this.map.removeLayer(this.suggestedRouteLayer);
+            this.suggestedRouteLayer = null;
+        }
+        this.clearWaypoints();
+    }
+
+    // Reduce opacity of suggested route during tracking
+    setSuggestedRouteTrackingMode(isTracking) {
+        if (this.suggestedRouteLayer) {
+            const opacity = isTracking ? 0.3 : 0.8;
+            this.suggestedRouteLayer.setStyle({ opacity });
+        }
+        
+        if (this.waypointsLayer && isTracking) {
+            // Reduce waypoint visibility during tracking
+            this.waypointsLayer.eachLayer(layer => {
+                if (layer.getElement) {
+                    const element = layer.getElement();
+                    if (element) {
+                        element.style.opacity = '0.5';
+                    }
+                }
+            });
+        } else if (this.waypointsLayer) {
+            // Restore full visibility when not tracking
+            this.waypointsLayer.eachLayer(layer => {
+                if (layer.getElement) {
+                    const element = layer.getElement();
+                    if (element) {
+                        element.style.opacity = '1';
+                    }
+                }
+            });
+        }
+    }
+
+    highlightUndiscoveredSegments(segments) {
+        // Clear existing highlights
+        this.clearUndiscoveredHighlights();
+
+        if (!segments || segments.length === 0) return;
+
+        this.undiscoveredHighlightsLayer = L.layerGroup().addTo(this.map);
+
+        const highlightStyle = {
+            color: '#f39c12',
+            weight: 3,
+            opacity: 0.9
+        };
+
+        segments.forEach(segment => {
+            const segmentLine = L.polyline([segment.start, segment.end], highlightStyle);
+            segmentLine.addTo(this.undiscoveredHighlightsLayer);
+        });
+    }
+
+    clearUndiscoveredHighlights() {
+        if (this.undiscoveredHighlightsLayer) {
+            this.map.removeLayer(this.undiscoveredHighlightsLayer);
+            this.undiscoveredHighlightsLayer = null;
+        }
     }
 } 
