@@ -28,6 +28,9 @@ class WanderlustApp {
         this.routeManager.loadStoredRoutes();
         this.updateXPDisplay();
         
+        // Initialize street service with map manager for drawing discovered segments
+        await this.streetService.initializeDiscoveredSegments(this.mapManager);
+        
         // Set up position change callback
         this.locationManager.setPositionChangeCallback((position, isInitial) => {
             this.mapManager.updateUserMarker(position);
@@ -127,7 +130,7 @@ class WanderlustApp {
         }
     }
 
-    startTracking() {
+    async startTracking() {
         if (!navigator.geolocation && !this.keyboardMode) return;
 
         this.isTracking = true;
@@ -142,15 +145,26 @@ class WanderlustApp {
             this.locationManager.startWatchingPosition(
                 (position) => this.handleLocationUpdate(position)
             );
+            
+            // Try to acquire wake lock to keep screen on
+            const wakeLockAcquired = await this.locationManager.requestWakeLock();
+            if (wakeLockAcquired) {
+                this.updateStatus('🚶‍♂️ Exploring... Screen will stay on for better tracking.');
+            } else {
+                this.updateStatus('🚶‍♂️ Exploring... Keep the app visible for best tracking.');
+            }
+        } else {
+            this.updateStatus('🚶‍♂️ Exploring... Keep moving to discover new areas!');
         }
-
-        this.updateStatus('🚶‍♂️ Exploring... Keep moving to discover new areas!');
     }
 
-    stopTracking() {
+    async stopTracking() {
         this.isTracking = false;
         this.locationManager.stopWatchingPosition();
         this.mapManager.setAutoCenter(false);
+        
+        // Release wake lock when stopping
+        await this.locationManager.releaseWakeLock();
 
         if (this.routeManager.currentRoute.length > 1) {
             this.routeManager.saveCurrentRoute();
@@ -217,6 +231,7 @@ class WanderlustApp {
                         this.mapManager.drawExploredSegment(closest.segment);
                         this.addXP(xpGained);
                         this.sessionXP += xpGained; // Track session XP
+                        this.routeManager.addDiscoveredSegment(closest.segment.id); // Track for route saving
                         this.updateStatus(`New street discovered! +${xpGained} XP (${closest.street.name})`);
                     }
                     this.lastSegmentId = closest.segment.id;

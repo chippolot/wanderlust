@@ -4,10 +4,12 @@ export class RouteManager {
         this.currentRoute = [];
         this.storedRoutes = [];
         this.isTracking = false;
+        this.discoveredSegments = new Set(); // Track segments discovered in current session
     }
 
     startNewRoute() {
         this.currentRoute = [];
+        this.discoveredSegments.clear(); // Reset discovered segments for new session
         this.isTracking = true;
     }
 
@@ -19,21 +21,30 @@ export class RouteManager {
         this.mapManager.drawRoute(this.currentRoute, 'current');
     }
 
+    // Add a segment to the current session's discovered segments
+    addDiscoveredSegment(segmentId) {
+        this.discoveredSegments.add(segmentId);
+    }
+
     saveCurrentRoute() {
         if (this.currentRoute.length < 2) return;
 
         const routeData = {
             id: Date.now(),
-            points: this.currentRoute,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            segmentCount: this.discoveredSegments.size,
+            // Don't save the actual route points anymore - we just care about discovered segments
+            discoveredSegments: Array.from(this.discoveredSegments)
         };
 
         this.storedRoutes.push(routeData);
         localStorage.setItem('wanderlust_routes', JSON.stringify(this.storedRoutes));
 
-        // Draw the saved route with discovered style
-        this.mapManager.drawRoute(routeData.points, 'discovered');
+        // Clear current route drawing since we don't want to show it anymore
+        this.mapManager.clearCurrentRoute();
+        
         this.currentRoute = [];
+        this.discoveredSegments.clear();
         this.isTracking = false;
     }
 
@@ -41,10 +52,8 @@ export class RouteManager {
         const stored = localStorage.getItem('wanderlust_routes');
         if (stored) {
             this.storedRoutes = JSON.parse(stored);
-            // Draw all stored routes with discovered style
-            this.storedRoutes.forEach(route => {
-                this.mapManager.drawRoute(route.points, 'discovered');
-            });
+            // We don't draw anything here anymore - discovered segments are handled by StreetService
+            console.log(`Loaded ${this.storedRoutes.length} previous exploration sessions`);
         }
     }
 
@@ -76,15 +85,14 @@ export class RouteManager {
     }
 
     calculateXP() {
-        // XP is now calculated by street segments, not distance
-        // This method kept for compatibility with existing routes
-        const distance = this.calculateDistance(this.currentRoute);
-        return Math.round(distance / 50); // Reduced XP for distance-based calculation
+        // XP is now calculated by discovered segments, not distance
+        return this.discoveredSegments.size * 10; // 10 XP per segment
     }
 
     clearAllRoutes() {
         // Clear current route
         this.currentRoute = [];
+        this.discoveredSegments.clear();
         
         // Clear stored routes
         this.storedRoutes = [];
@@ -93,8 +101,9 @@ export class RouteManager {
         // Clear XP
         localStorage.removeItem('userXP');
         
-        // Clear street exploration data - use correct key
+        // Clear street exploration data - use correct keys
         localStorage.removeItem('wanderlust_explored_segments');
+        localStorage.removeItem('wanderlust_explored_segment_data');
         
         return true; // Indicate success
     }

@@ -143,10 +143,10 @@ export class MapManager {
         }
     }
 
-    drawRoute(route, style = 'discovered') {
+    drawRoute(route, style = 'current') {
         if (!this.map || !route || route.length < 2) return;
 
-        const routeStyle = this.routeStyles[style] || this.routeStyles.discovered;
+        const routeStyle = this.routeStyles[style] || this.routeStyles.current;
         const polyline = L.polyline(route, routeStyle).addTo(this.map);
 
         if (style === 'current') {
@@ -154,11 +154,13 @@ export class MapManager {
                 this.map.removeLayer(this.currentRouteLayer);
             }
             this.currentRouteLayer = polyline;
-        } else {
-            if (!this.routeLayer) {
-                this.routeLayer = L.layerGroup().addTo(this.map);
-            }
-            polyline.addTo(this.routeLayer);
+        }
+    }
+
+    clearCurrentRoute() {
+        if (this.currentRouteLayer) {
+            this.map.removeLayer(this.currentRouteLayer);
+            this.currentRouteLayer = null;
         }
     }
 
@@ -174,14 +176,10 @@ export class MapManager {
     }
 
     clearAllRoutes() {
-        if (this.routeLayer) {
-            this.map.removeLayer(this.routeLayer);
-            this.routeLayer = null;
-        }
-        if (this.currentRouteLayer) {
-            this.map.removeLayer(this.currentRouteLayer);
-            this.currentRouteLayer = null;
-        }
+        // Clear current route
+        this.clearCurrentRoute();
+        
+        // Clear explored segments
         if (this.exploredSegmentsLayer) {
             this.map.removeLayer(this.exploredSegmentsLayer);
             this.exploredSegmentsLayer = null;

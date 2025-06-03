@@ -1,12 +1,25 @@
 // Street service for handling street data and segment tracking
 export class StreetService {
     constructor() {
-        this.exploredSegments = new Set(); // Track explored segments
+        this.exploredSegments = new Set(); // Track explored segment IDs
+        this.exploredSegmentData = new Map(); // Store actual segment data with coordinates
         this.currentBBox = null; // Track current bounding box
         this.cachedStreets = null; // Single cache for current bbox
         this.SEARCH_RADIUS = 200; // Increased search radius to 200 meters
         this.BBOX_BUFFER = 0.7; // How far into the bbox (70%) before requesting new data
         this.loadExploredSegments();
+    }
+
+    // Initialize and draw all previously discovered segments
+    async initializeDiscoveredSegments(mapManager) {
+        this.mapManager = mapManager;
+        
+        // Draw all stored discovered segments
+        for (const [segmentId, segmentData] of this.exploredSegmentData) {
+            this.mapManager.drawExploredSegment(segmentData);
+        }
+        
+        console.log(`Drew ${this.exploredSegmentData.size} previously discovered segments`);
     }
 
     // Get nearby streets using Overpass API
@@ -17,6 +30,8 @@ export class StreetService {
         // Check if point is within current bounding box (with buffer)
         if (this.isWithinBufferedBBox(lat, lng) && this.cachedStreets) {
             console.log('Using cached street data from current bbox');
+            // Update exploration status of cached segments
+            this.updateCachedSegmentsExplorationStatus();
             return this.cachedStreets;
         }
 
@@ -68,6 +83,17 @@ export class StreetService {
             console.warn('Failed to fetch street data:', error);
             // Return existing cache if available, otherwise empty array
             return this.cachedStreets || [];
+        }
+    }
+
+    // Update cached segments with current exploration status
+    updateCachedSegmentsExplorationStatus() {
+        if (!this.cachedStreets) return;
+        
+        for (const street of this.cachedStreets) {
+            for (const segment of street.segments) {
+                segment.explored = this.exploredSegments.has(segment.id);
+            }
         }
     }
 
@@ -218,7 +244,29 @@ export class StreetService {
             return 0; // No XP for already explored segments
         }
 
+        // Find the segment in current data to store its coordinates
+        let segmentData = null;
+        if (this.cachedStreets) {
+            for (const street of this.cachedStreets) {
+                for (const segment of street.segments) {
+                    if (segment.id === segmentId) {
+                        segmentData = {
+                            id: segmentId,
+                            start: segment.start,
+                            end: segment.end,
+                            streetName: street.name
+                        };
+                        break;
+                    }
+                }
+                if (segmentData) break;
+            }
+        }
+
         this.exploredSegments.add(segmentId);
+        if (segmentData) {
+            this.exploredSegmentData.set(segmentId, segmentData);
+        }
         this.saveExploredSegments();
 
         // Award XP based on segment length (estimate ~50m average segment = 10 XP)
@@ -233,27 +281,40 @@ export class StreetService {
     // Save explored segments to localStorage
     saveExploredSegments() {
         const segmentsArray = Array.from(this.exploredSegments);
+        const segmentDataArray = Array.from(this.exploredSegmentData.entries());
+        
         localStorage.setItem('wanderlust_explored_segments', JSON.stringify(segmentsArray));
+        localStorage.setItem('wanderlust_explored_segment_data', JSON.stringify(segmentDataArray));
     }
 
     // Load explored segments from localStorage
     loadExploredSegments() {
         try {
             const stored = localStorage.getItem('wanderlust_explored_segments');
+            const storedData = localStorage.getItem('wanderlust_explored_segment_data');
+            
             if (stored) {
                 const segmentsArray = JSON.parse(stored);
                 this.exploredSegments = new Set(segmentsArray);
             }
+            
+            if (storedData) {
+                const segmentDataArray = JSON.parse(storedData);
+                this.exploredSegmentData = new Map(segmentDataArray);
+            }
         } catch (error) {
             console.warn('Failed to load explored segments:', error);
             this.exploredSegments = new Set();
+            this.exploredSegmentData = new Map();
         }
     }
 
     // Clear all explored segments
     clearExploredSegments() {
         this.exploredSegments.clear();
+        this.exploredSegmentData.clear();
         localStorage.removeItem('wanderlust_explored_segments');
+        localStorage.removeItem('wanderlust_explored_segment_data');
         // Clear the street cache to force a refresh
         this.cachedStreets = null;
         this.currentBBox = null;
