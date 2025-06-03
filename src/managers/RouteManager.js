@@ -1,33 +1,51 @@
 export class RouteManager {
-    constructor() {
+    constructor(mapManager) {
+        this.mapManager = mapManager;
         this.currentRoute = [];
+        this.storedRoutes = [];
+        this.isTracking = false;
     }
 
     startNewRoute() {
         this.currentRoute = [];
+        this.isTracking = true;
     }
 
-    addPointToRoute(position) {
-        this.currentRoute.push(position);
+    addPointToRoute(point) {
+        if (!this.isTracking) return;
+
+        this.currentRoute.push(point);
+        // Draw current route with current style
+        this.mapManager.drawRoute(this.currentRoute, 'current');
     }
 
     saveCurrentRoute() {
-        const routes = this.getStoredRoutes();
+        if (this.currentRoute.length < 2) return;
+
         const routeData = {
             id: Date.now(),
             points: this.currentRoute,
-            timestamp: new Date().toISOString(),
-            distance: this.calculateDistance(this.currentRoute)
+            timestamp: new Date().toISOString()
         };
 
-        routes.push(routeData);
-        localStorage.setItem('wanderlust_routes', JSON.stringify(routes));
+        this.storedRoutes.push(routeData);
+        localStorage.setItem('wanderlust_routes', JSON.stringify(this.storedRoutes));
 
-        return routeData;
+        // Draw the saved route with discovered style
+        this.mapManager.drawRoute(routeData.points, 'discovered');
+        this.currentRoute = [];
+        this.isTracking = false;
     }
 
     loadStoredRoutes() {
-        return this.getStoredRoutes();
+        const stored = localStorage.getItem('wanderlust_routes');
+        if (stored) {
+            this.storedRoutes = JSON.parse(stored);
+            // Draw all stored routes with discovered style
+            this.storedRoutes.forEach(route => {
+                this.mapManager.drawRoute(route.points, 'discovered');
+            });
+        }
     }
 
     getStoredRoutes() {

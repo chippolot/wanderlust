@@ -6,7 +6,7 @@ import { LocationManager } from './managers/LocationManager.js';
 class WanderlustApp {
     constructor() {
         this.mapManager = new MapManager();
-        this.routeManager = new RouteManager();
+        this.routeManager = new RouteManager(this.mapManager);
         this.locationManager = new LocationManager();
         this.streetService = new StreetService();
         this.isTracking = false;

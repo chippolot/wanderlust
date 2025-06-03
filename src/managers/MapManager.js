@@ -4,10 +4,29 @@ export class MapManager {
     constructor() {
         this.map = null;
         this.userMarker = null;
+        this.routeLayer = null;
         this.currentRouteLayer = null;
-        this.routeLayers = [];
-        this.exploredSegmentLayers = [];
-        this.autoCenter = true;
+        this.exploredSegmentsLayer = null;
+        this.autoCenter = false;
+        this.routeStyles = {
+            discovered: {
+                color: '#2196F3',
+                weight: 3,
+                opacity: 0.4,
+                dashArray: '5, 5'
+            },
+            current: {
+                color: '#2196F3',
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            },
+            new: {
+                color: '#FF5722',
+                weight: 5,
+                opacity: 1.0
+            }
+        };
     }
 
     initMap() {
@@ -66,53 +85,48 @@ export class MapManager {
         this.autoCenter = enabled;
     }
 
-    drawCurrentRoute(route) {
-        // Remove previous current route layer
-        if (this.currentRouteLayer) {
-            this.map.removeLayer(this.currentRouteLayer);
+    drawRoute(route, style = 'discovered') {
+        if (!this.map || !route || route.length < 2) return;
+
+        const routeStyle = this.routeStyles[style] || this.routeStyles.discovered;
+        const polyline = L.polyline(route, routeStyle).addTo(this.map);
+
+        if (style === 'current') {
+            if (this.currentRouteLayer) {
+                this.map.removeLayer(this.currentRouteLayer);
+            }
+            this.currentRouteLayer = polyline;
+        } else {
+            if (!this.routeLayer) {
+                this.routeLayer = L.layerGroup().addTo(this.map);
+            }
+            polyline.addTo(this.routeLayer);
         }
-
-        if (route.length > 1) {
-            this.currentRouteLayer = L.polyline(route, {
-                color: '#e74c3c',
-                weight: 4,
-                opacity: 0.8,
-                dashArray: '5, 5'
-            }).addTo(this.map);
-        }
-    }
-
-    drawSavedRoute(routeData) {
-        const routeLayer = L.polyline(routeData.points, {
-            color: '#27ae60',
-            weight: 3,
-            opacity: 0.7
-        }).addTo(this.map);
-
-        this.routeLayers.push(routeLayer);
     }
 
     drawExploredSegment(segment) {
-        const segmentLayer = L.polyline([segment.start, segment.end], {
-            color: '#2ecc71',
-            weight: 6,
-            opacity: 0.8,
-            className: 'explored-segment'
-        }).addTo(this.map);
+        if (!this.map) return;
 
-        this.exploredSegmentLayers.push({
-            layer: segmentLayer,
-            segmentId: segment.id
-        });
+        const segmentLine = L.polyline([segment.start, segment.end], this.routeStyles.new).addTo(this.map);
+        
+        if (!this.exploredSegmentsLayer) {
+            this.exploredSegmentsLayer = L.layerGroup().addTo(this.map);
+        }
+        segmentLine.addTo(this.exploredSegmentsLayer);
     }
 
     clearAllRoutes() {
-        // Remove route layers from map
-        this.routeLayers.forEach(layer => this.map.removeLayer(layer));
-        this.routeLayers = [];
-
-        // Remove explored segment layers
-        this.exploredSegmentLayers.forEach(item => this.map.removeLayer(item.layer));
-        this.exploredSegmentLayers = [];
+        if (this.routeLayer) {
+            this.map.removeLayer(this.routeLayer);
+            this.routeLayer = null;
+        }
+        if (this.currentRouteLayer) {
+            this.map.removeLayer(this.currentRouteLayer);
+            this.currentRouteLayer = null;
+        }
+        if (this.exploredSegmentsLayer) {
+            this.map.removeLayer(this.exploredSegmentsLayer);
+            this.exploredSegmentsLayer = null;
+        }
     }
 } 
