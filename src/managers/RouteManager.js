@@ -87,13 +87,14 @@ export class RouteManager {
         this.currentRoute = [];
         
         // Clear stored routes
+        this.storedRoutes = [];
         localStorage.removeItem('wanderlust_routes');
         
         // Clear XP
         localStorage.removeItem('userXP');
         
-        // Clear street exploration data
-        localStorage.removeItem('explored_streets');
+        // Clear street exploration data - use correct key
+        localStorage.removeItem('wanderlust_explored_segments');
         
         return true; // Indicate success
     }

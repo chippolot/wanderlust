@@ -31,7 +31,6 @@ class WanderlustApp {
         this.locationManager.setPositionChangeCallback((position, isInitial) => {
             this.mapManager.updateUserMarker(position);
             if (isInitial) {
-                this.mapManager.centerOnUser();
                 this.mapManager.setAutoCenter(true);
             }
         });
@@ -40,6 +39,8 @@ class WanderlustApp {
         const permissionStatus = await this.locationManager.checkPermissionStatus();
         if (permissionStatus === 'granted') {
             await this.locationManager.getInitialLocation();
+            this.updateStatus('Ready to explore! Click "Start Exploring" to begin.');
+        } else {
             this.updateStatus('Click "Start Exploring" to begin your journey!');
         }
     }
@@ -240,15 +241,18 @@ class WanderlustApp {
     toggleKeyboardMode() {
         this.keyboardMode = !this.keyboardMode;
         const btn = document.getElementById('keyboard-mode');
+        const hint = document.getElementById('keyboard-hint');
         
         if (this.keyboardMode) {
             btn.textContent = 'Exit Keyboard Mode';
             btn.classList.add('active');
+            hint.classList.add('active');
             this.mapManager.setKeyboardMode(true);
             this.updateStatus('Keyboard mode enabled! Use arrow keys or WASD to move.');
         } else {
             btn.textContent = 'Keyboard Mode';
             btn.classList.remove('active');
+            hint.classList.remove('active');
             this.mapManager.setKeyboardMode(false);
             this.updateStatus('Keyboard mode disabled.');
         }

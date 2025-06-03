@@ -81,7 +81,7 @@ export class MapManager {
             div.innerHTML = `
                 <select id="map-style-select">
                     ${Object.keys(this.mapStyles).map(style => 
-                        `<option value="${style}">${style}</option>`
+                        `<option value="${style}" ${style === 'CartoDB Voyager' ? 'selected' : ''}>${style}</option>`
                     ).join('')}
                 </select>
             `;

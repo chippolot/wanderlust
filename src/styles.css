@@ -1,3 +1,142 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f5f5;
+}
+
+/* App layout */
+#app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.header {
+    background: #2c3e50;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.xp-display {
+    font-size: 1rem;
+    background: #3498db;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+}
+
+/* Map */
+#map {
+    flex: 1;
+    z-index: 1;
+}
+
+/* Controls */
+.controls {
+    position: absolute;
+    top: 80px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.btn:hover {
+    background: #2980b9;
+}
+
+.btn:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+}
+
+.btn.tracking {
+    background: #e74c3c;
+}
+
+.btn.tracking:hover {
+    background: #c0392b;
+}
+
+.btn.active {
+    background: #9b59b6;
+    animation: pulse 2s infinite;
+}
+
+.btn.active:hover {
+    background: #8e44ad;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Keyboard hint */
+.keyboard-hint {
+    position: absolute;
+    top: 220px;
+    right: 10px;
+    background: rgba(155, 89, 182, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 1000;
+    display: none;
+}
+
+.keyboard-hint.active {
+    display: block;
+}
+
+/* Status */
+.status {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(44, 62, 80, 0.9);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 1000;
+    text-align: center;
+    max-width: 90%;
+}
+
+/* Map style control */
 .map-style-control {
     background: white;
     padding: 5px;
