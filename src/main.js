@@ -17,6 +17,7 @@ class WanderlustApp {
         this.currentStreetName = null;
         this.lastUpdateTimestamp = 0;
         this.pendingStreetUpdate = null;
+        this.sessionXP = 0; // Track XP gained in current session
 
         this.init();
     }
@@ -31,6 +32,7 @@ class WanderlustApp {
         this.locationManager.setPositionChangeCallback((position, isInitial) => {
             this.mapManager.updateUserMarker(position);
             if (isInitial) {
+                this.mapManager.centerOnUser();
                 this.mapManager.setAutoCenter(true);
             }
         });
@@ -129,6 +131,7 @@ class WanderlustApp {
         if (!navigator.geolocation && !this.keyboardMode) return;
 
         this.isTracking = true;
+        this.sessionXP = 0; // Reset session XP when starting
         this.routeManager.startNewRoute();
 
         if (this.locationManager.currentPosition) {
@@ -151,9 +154,13 @@ class WanderlustApp {
 
         if (this.routeManager.currentRoute.length > 1) {
             this.routeManager.saveCurrentRoute();
-            const xpGained = this.routeManager.calculateXP();
-            this.addXP(xpGained);
-            this.updateStatus(`Route saved! +${xpGained} XP earned! 🎉`);
+            if (this.sessionXP > 0) {
+                this.updateStatus(`Route saved! +${this.sessionXP} XP earned! 🎉`);
+            } else {
+                this.updateStatus('Route saved! No new streets discovered this time.');
+            }
+        } else {
+            this.updateStatus('Exploration ended. Try moving around more to discover streets!');
         }
     }
 
@@ -209,6 +216,7 @@ class WanderlustApp {
                     if (xpGained > 0) {
                         this.mapManager.drawExploredSegment(closest.segment);
                         this.addXP(xpGained);
+                        this.sessionXP += xpGained; // Track session XP
                         this.updateStatus(`New street discovered! +${xpGained} XP (${closest.street.name})`);
                     }
                     this.lastSegmentId = closest.segment.id;
