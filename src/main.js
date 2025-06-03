@@ -231,12 +231,12 @@ class WanderlustApp {
                 return;
             }
 
-            // Find closest street segment
-            const closest = this.streetService.findClosestSegment(lat, lng, this.nearbyStreets);
+            // Find closest street segment, passing the current segment ID for bias
+            const closest = this.streetService.findClosestSegment(lat, lng, this.nearbyStreets, this.lastSegmentId);
 
             console.log('🎯 Closest segment:', closest);
 
-            if (closest && closest.distance < 50) { // Within 50 meters of a street
+            if (closest && closest.distance < 25) { // Within 50 meters of a street
                 const snappedPoint = closest.snapPoint;
 
                 console.log(`🛣️ Snapping to ${closest.street.name}, distance: ${closest.distance.toFixed(1)}m`);

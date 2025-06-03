@@ -1,21 +1,26 @@
 // Street service for handling street data and segment tracking
 export class StreetService {
     constructor() {
-        this.streetCache = new Map(); // Cache for street data by bounding box
         this.exploredSegments = new Set(); // Track explored segments
+        this.currentBBox = null; // Track current bounding box
+        this.cachedStreets = null; // Single cache for current bbox
+        this.SEARCH_RADIUS = 200; // Increased search radius to 200 meters
+        this.BBOX_BUFFER = 0.7; // How far into the bbox (70%) before requesting new data
         this.loadExploredSegments();
     }
 
     // Get nearby streets using Overpass API
-    async getNearbyStreets(lat, lng, radiusMeters = 100) {
-        const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    async getNearbyStreets(lat, lng, radiusMeters = null) {
+        // Use class-level search radius if none provided
+        radiusMeters = radiusMeters || this.SEARCH_RADIUS;
 
-        if (this.streetCache.has(key)) {
-            console.log('Using cached street data for', key);
-            return this.streetCache.get(key);
+        // Check if point is within current bounding box (with buffer)
+        if (this.isWithinBufferedBBox(lat, lng) && this.cachedStreets) {
+            console.log('Using cached street data from current bbox');
+            return this.cachedStreets;
         }
 
-        console.log('Fetching street data for', lat, lng);
+        console.log('Outside current bbox, fetching new street data for', lat, lng);
 
         try {
             // Create bounding box around point
@@ -29,7 +34,8 @@ export class StreetService {
                 lng + lngDelta   // east
             ];
 
-            console.log('Bounding box:', bbox);
+            // Store new bounding box
+            this.currentBBox = bbox;
 
             const query = `
         [out:json][timeout:10];
@@ -39,33 +45,63 @@ export class StreetService {
         out geom;
       `;
 
-            console.log('Overpass query:', query);
-
             const response = await fetch('https://overpass-api.de/api/interpreter', {
                 method: 'POST',
                 body: query,
                 headers: { 'Content-Type': 'text/plain' }
             });
 
-            console.log('Overpass response status:', response.status);
-
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             const data = await response.json();
-            console.log('Overpass data:', data);
-
             const streets = this.processStreetData(data.elements || []);
-            console.log('Processed streets:', streets.length);
+            console.log('Fetched and processed new streets:', streets.length);
 
-            this.streetCache.set(key, streets);
+            // Update the cache with new data
+            this.cachedStreets = streets;
+
             return streets;
 
         } catch (error) {
             console.warn('Failed to fetch street data:', error);
-            return [];
+            // Return existing cache if available, otherwise empty array
+            return this.cachedStreets || [];
         }
+    }
+
+    // Check if a point is within the current bounding box, accounting for buffer
+    isWithinBufferedBBox(lat, lng) {
+        if (!this.currentBBox) return false;
+
+        const [south, west, north, east] = this.currentBBox;
+
+        // Calculate the buffer size (as a portion of the total box size)
+        const latBuffer = (north - south) * (1 - this.BBOX_BUFFER) / 2;
+        const lngBuffer = (east - west) * (1 - this.BBOX_BUFFER) / 2;
+
+        // Check if point is within the buffered box
+        return lat >= (south + latBuffer) &&
+            lat <= (north - latBuffer) &&
+            lng >= (west + lngBuffer) &&
+            lng <= (east - lngBuffer);
+    }
+
+    // Calculate haversine distance between two points in meters
+    haversineDistance([lat1, lon1], [lat2, lon2]) {
+        const R = 6371e3; // Earth's radius in meters
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
     }
 
     // Process raw Overpass data into usable street segments
@@ -101,20 +137,26 @@ export class StreetService {
     }
 
     // Find closest street segment to a GPS point
-    findClosestSegment(lat, lng, streets) {
+    findClosestSegment(lat, lng, streets, currentSegmentId = null) {
         let closest = null;
         let minDistance = Infinity;
+        const CURRENT_SEGMENT_BIAS = 5; // 5 meter bias for current segment
 
         for (const street of streets) {
             for (const segment of street.segments) {
-                const distance = this.distanceToSegment([lat, lng], segment.start, segment.end);
+                let distance = this.distanceToSegment([lat, lng], segment.start, segment.end);
+
+                // Apply bias if this is the current segment
+                if (currentSegmentId && segment.id === currentSegmentId) {
+                    distance -= CURRENT_SEGMENT_BIAS;
+                }
 
                 if (distance < minDistance) {
                     minDistance = distance;
                     closest = {
                         segment,
                         street,
-                        distance,
+                        distance: distance + (currentSegmentId && segment.id === currentSegmentId ? CURRENT_SEGMENT_BIAS : 0), // Return actual distance
                         snapPoint: this.snapToSegment([lat, lng], segment.start, segment.end)
                     };
                 }
